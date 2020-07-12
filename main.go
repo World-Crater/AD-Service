@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	"github.com/ulule/limiter/v3"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -29,9 +31,9 @@ type NoSQL struct {
 func (noSQL *NoSQL) init() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://root:example@localhost:27017"))
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(os.Getenv("MONGO_HOST")))
 	check(err)
-	collection := client.Database("test").Collection("test")
+	collection := client.Database("AD-Service").Collection("logs")
 	noSQL.client = client
 	noSQL.test = collection
 }
@@ -73,15 +75,15 @@ type GetLogsReqQuery struct {
 }
 
 func initRedis() *libredis.Client {
-	option, err := libredis.ParseURL("redis://localhost:6379/0")
+	option, err := libredis.ParseURL(os.Getenv("REDIS_HOST") + "/0")
 	check(err)
 	client := libredis.NewClient(option)
 	return client
 }
 
 func initRateLimit(client *libredis.Client) gin.HandlerFunc {
-	// Define a limit rate to 4 requests per hour.
-	rate, err := limiter.NewRateFromFormatted("1000-H")
+	// Define a limit rate to muti requests per hour.
+	rate, err := limiter.NewRateFromFormatted("50-H")
 	check(err)
 
 	// Create a store with the redis client.
@@ -123,8 +125,14 @@ func getLogsCount(noSQLHandler NoSQL) func(c *gin.Context) {
 	}
 }
 
+func initLoadEnv() {
+	err := godotenv.Load()
+	check(err)
+}
+
 func main() {
 	// Init
+	initLoadEnv()
 	r := gin.Default()
 	var noSQLHandler NoSQL = NoSQL{}
 	noSQLHandler.init()
@@ -136,5 +144,5 @@ func main() {
 	// Route
 	r.POST("/logs", postLogs(noSQLHandler))
 	r.GET("/logs/count", getLogsCount(noSQLHandler))
-	r.Run()
+	r.Run(":" + os.Getenv("PORT"))
 }
