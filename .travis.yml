@@ -1,0 +1,11 @@
+dist: trusty
+
+jobs:
+  include:
+    - stage: build docker image
+      if: branch = master
+      script:
+      - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+      - docker build -t ad-service .
+      - docker tag ad-service $DOCKER_USERNAME/ad-service
+      - docker push $DOCKER_USERNAME/ad-service
